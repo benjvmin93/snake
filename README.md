@@ -14,5 +14,4 @@ For example on Ubuntu you need to type : `sudo apt-get install libncurses5-dev l
 
 # Next features
 
-- Increase speed while the snake keeps growing.
 - Adapt the snake's body caracters currently setted to '~'. It could be cool to adapt them to the direction they go.

@@ -5,25 +5,31 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ncurses.h>
+#include <time.h>
 
 #include "game.h"
 #include "memory.h"
+#include "snake.h"
 
-#define CIRCUIT_SIZE 30
+#define CIRCUIT_WIDTH 30
+#define CIRCUIT_HEIGHT 55
 
+/*
+    Initialize circuit according to CIRCUIT_WIDTH and CIRCUIT_HEIGHT.
+*/
 char **init_circuit(void)
 {
-	char **circuit = xcalloc(CIRCUIT_SIZE, sizeof(char *));
-	for (size_t i = 0; i < CIRCUIT_SIZE; ++i)
+	char **circuit = xcalloc(CIRCUIT_WIDTH, sizeof(char *));
+	for (size_t i = 0; i < CIRCUIT_WIDTH; ++i)
 	{
-		circuit[i] = xcalloc(CIRCUIT_SIZE + 1, sizeof(char));
-		for (size_t j = 0; j < CIRCUIT_SIZE + 1; ++j)
+		circuit[i] = xcalloc(CIRCUIT_HEIGHT + 1, sizeof(char));
+		for (size_t j = 0; j < CIRCUIT_HEIGHT + 1; ++j)
 		{
-			if (i == 0 || i == CIRCUIT_SIZE - 1)
+			if (i == 0 || i == CIRCUIT_WIDTH - 1)
 				circuit[i][j] = '-';
-			else if (j == 0 || j == CIRCUIT_SIZE - 1)
+			else if (j == 0 || j == CIRCUIT_HEIGHT - 1)
 				circuit[i][j] = '|';
-            else if (j == CIRCUIT_SIZE)
+            else if (j == CIRCUIT_HEIGHT)
                 circuit[i][j] = '\n';
 			else
 				circuit[i][j] = ' ';
@@ -32,11 +38,50 @@ char **init_circuit(void)
 	return circuit;
 }
 
+/*
+    Fill the array circuit with caracters according to the snake position.
+*/
+void update_circuit(struct Game *game)
+{
+    struct Snake *snake = game->snake;
+    game->circuit[snake->y][snake->x] = 's';
+    snake = snake->next;
+    while (snake != NULL)
+    {
+        game->circuit[snake->y][snake->x] = '~';
+        snake = snake->next;
+    }
+}
+
+/*
+    Initialize the game including the circuit and the snake structure.
+*/
+struct Game *init_game(void)
+{
+    struct Game *game = xmalloc(sizeof(struct Game));
+    game->circuit = init_circuit();
+    game->snake = init_snake(CIRCUIT_HEIGHT / 2, CIRCUIT_WIDTH / 2);
+
+    struct Snake *ptr = game->snake;
+
+    game->circuit[ptr->y][ptr->x] = 's';
+    ptr = ptr->next;
+    while (ptr != NULL)
+    {
+        game->circuit[ptr->y][ptr->x] = '~';
+        ptr = ptr->next;
+    }
+
+    update_circuit(game);
+
+    return game;
+}
+
 void render_circuit(char **circuit)
 {
-    for (size_t i = 0; i < CIRCUIT_SIZE; ++i)
+    for (size_t i = 0; i < CIRCUIT_WIDTH; ++i)
 	{
-        for (size_t j = 0; j < CIRCUIT_SIZE + 1; ++j)
+        for (size_t j = 0; j < CIRCUIT_HEIGHT; ++j)
         {
             mvaddch(i, j, circuit[i][j]);
         }
@@ -44,75 +89,51 @@ void render_circuit(char **circuit)
     refresh();
 }
 
-bool isValidMove(size_t pos_x, size_t pos_y)
+void update_position(struct Game *game, int *direction)
 {
-    if (pos_x > 0 && pos_x < CIRCUIT_SIZE &&
-        pos_y > 0 && pos_y < CIRCUIT_SIZE - 1)
+    struct Snake *snake = game->snake;
+
+    // Fill the old snake position with space caracter in the circuit.
+    struct Snake *ptr = snake;
+    while (ptr)
     {
-        return true;
+        game->circuit[ptr->y][ptr->x] = ' ';
+        ptr = ptr->next;
     }
-    return false;
+
+    update_snake_pos(snake, direction);
+
+    // Check whether the position update has reached circuir boundaries.
+    ptr = snake;
+
+    while (ptr)
+    {
+        if (ptr->x < 1)
+            ptr->x = CIRCUIT_HEIGHT - 2;
+        if (ptr->x >= CIRCUIT_HEIGHT - 1)
+            ptr->x = 1;
+        if (ptr->y < 1)
+            ptr->y = CIRCUIT_WIDTH - 2;
+        if (ptr->y >= CIRCUIT_WIDTH - 1)
+            ptr->y = 1;
+        
+        ptr = ptr->next;
+    }
+
+    // Update circuit array according to the snake coordinates.
+    update_circuit(game);
 }
 
-void update_position(char **circuit, size_t pos_x, size_t pos_y, int move)
+void free_game(struct Game *game)
 {
-    size_t new_pos_x = pos_x;
-    size_t new_pos_y = pos_y;
-
-    switch(move)
-        {
-            case KEY_UP:
-            {
-                if (isValidMove(pos_x, pos_y - 1))
-                {
-                    new_pos_x = pos_x;
-                    new_pos_y = pos_y - 1;
-                }
-                printw("UP");
-                break;
-            }
-            case KEY_DOWN:
-            {
-                if (isValidMove(pos_x, pos_y + 1))
-                {
-                    new_pos_x = pos_x;
-                    new_pos_y = pos_y + 1;
-                }
-                printw("DOWN");
-                break;
-            }
-            case KEY_LEFT:
-            {
-                if (isValidMove(pos_x - 1, pos_y))
-                {
-                    new_pos_y = pos_y;
-                    new_pos_x = pos_x - 1;
-                }
-                printw("LEFT");
-
-                break;
-            }
-            case KEY_RIGHT:
-            {
-                if (isValidMove(pos_x + 1, pos_y))
-                {
-                    new_pos_y = pos_y;
-                    new_pos_x = pos_x + 1;
-                }
-                printw("RIGHT");
-
-                break;
-            }
-            default:
-                break;
-        }
-        circuit[pos_y][pos_x] = ' ';
-        circuit[new_pos_y][new_pos_x] = 's';
+    free_snake(game->snake);
+    free_circuit(game->circuit);
+    free(game);
 }
 
 void free_circuit(char **circuit)
 {
-	for (size_t i = 0; i < CIRCUIT_SIZE; ++i)
+	for (size_t i = 0; i < CIRCUIT_WIDTH; ++i)
 	{
 		free(circuit[i]);
 	}
@@ -124,26 +145,46 @@ WINDOW *create_window(size_t height, size_t width, size_t start_x, size_t start_
     return newwin(height, width, start_y, start_x);
 }
 
-void game_loop(char **circuit)
+/*
+    Check whether the move is a arrow keybind and if it's not at the opposite of the direction.
+*/
+bool isValidMove(int move, int *direction)
 {
-    size_t pos_x = (CIRCUIT_SIZE + 1) / 2;
-    size_t pos_y = CIRCUIT_SIZE / 2;
+    if (move != KEY_UP && move != KEY_DOWN && move != KEY_LEFT && move != KEY_RIGHT)
+        return false;
 
-    WINDOW *win = create_window(CIRCUIT_SIZE, CIRCUIT_SIZE, pos_x, pos_y);
+    if (move == KEY_UP && *direction == KEY_DOWN)
+        return false;
+    if (move == KEY_DOWN && *direction == KEY_UP)
+        return false;
+    if (move == KEY_LEFT && *direction == KEY_RIGHT)
+        return false;
+    if (move == KEY_RIGHT && *direction == KEY_LEFT)
+        return false;
 
-    circuit[pos_y][pos_x] = 's';
+    return true;
+}
 
-    render_circuit(circuit);
+void game_loop(struct Game *game)
+{
+    update_circuit(game);
+    render_circuit(game->circuit);
+
+    int *direction = xmalloc(sizeof(int));
+    *direction = KEY_RIGHT;
     int move;
     while ((move = getch()) != 'q')
     {
+        // Check whether it's a valid move
+        // and update *direction in consequence.
+        if (isValidMove(move, direction))
+            *direction = move;
         
-        update_position(circuit, pos_x, pos_y, move);
-        render_circuit(circuit);
+        // Update the position according to the direction.
+        update_position(game, direction);
+
+        //Finally render circuit.
+        render_circuit(game->circuit);
+        sleep(1);
     }
 }
-
-// UP: "^[[A"
-// DOWN: "^[[B"
-// LEFT: "^[[D"
-// RIGHT: "^[[C"

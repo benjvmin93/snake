@@ -1,2 +1,15 @@
+CC = gcc
+
+CFLAGS=-Wextra -Wall
+FILES = main.c game.c memory.c snake.c
+
+LIBS=-lncurses
+
 all:
-	gcc -fsanitize=address -o main -g main.c game.c memory.c -lncurses
+	${CC} ${CFLAGS} -o main ${FILES} ${LIBS}
+
+debug:
+	${CC} ${CFLAGS} -fsanitize=address -g -o main ${FILES} ${LIBS}
+
+clean:
+	rm -f main

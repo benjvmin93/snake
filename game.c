@@ -10,9 +10,10 @@
 #include "game.h"
 #include "memory.h"
 #include "snake.h"
+#include "food.h"
 
-#define CIRCUIT_WIDTH 30
-#define CIRCUIT_HEIGHT 55
+#define CIRCUIT_WIDTH 15
+#define CIRCUIT_HEIGHT 25
 
 /*
     Initialize circuit according to CIRCUIT_WIDTH and CIRCUIT_HEIGHT.
@@ -59,9 +60,13 @@ void update_circuit(struct Game *game)
 struct Game *init_game(void)
 {
     struct Game *game = xmalloc(sizeof(struct Game));
+    game->start = false;
     game->circuit = init_circuit();
     game->snake = init_snake(CIRCUIT_HEIGHT / 2, CIRCUIT_WIDTH / 2);
+    game->food = init_food(CIRCUIT_HEIGHT, CIRCUIT_WIDTH);
+    game->score = 0;
 
+    game->circuit[game->food->y][game->food->x] = '*';
     struct Snake *ptr = game->snake;
 
     game->circuit[ptr->y][ptr->x] = 's';
@@ -77,15 +82,18 @@ struct Game *init_game(void)
     return game;
 }
 
-void render_circuit(char **circuit)
+void render_circuit(struct Game *game)
 {
     for (size_t i = 0; i < CIRCUIT_WIDTH; ++i)
 	{
         for (size_t j = 0; j < CIRCUIT_HEIGHT; ++j)
         {
-            mvaddch(i, j, circuit[i][j]);
+            mvaddch(i, j, game->circuit[i][j]);
         }
     }
+
+    printw("score: %d", game->score);
+
     refresh();
 }
 
@@ -165,26 +173,85 @@ bool isValidMove(int move, int *direction)
     return true;
 }
 
+bool check_food_coord(char **circuit, size_t food_x, size_t food_y)
+{
+    if (circuit[food_y][food_x] != ' ')
+        return false;
+    return true;
+}
+
+bool check_collision(struct Game *game, size_t tail_x, size_t tail_y)
+{
+    // Check if snake has eat.
+    if (game->snake->x == game->food->x &&
+        game->snake->y == game->food->y)
+        {
+            grow_snake(game->snake, tail_x, tail_y);
+            size_t food_x = (rand() % CIRCUIT_HEIGHT) + 1;
+            size_t food_y = (rand() % CIRCUIT_WIDTH) + 1;
+            while (! check_food_coord(game->circuit, food_x, food_y))
+            {
+                food_x = (rand() % CIRCUIT_HEIGHT) + 1;
+                food_y = (rand() % CIRCUIT_WIDTH) + 1;
+            }
+            game->food->x = food_x;
+            game->food->y = food_y;
+            game->circuit[game->food->y][game->food->x] = '*';
+            game->score += 10;
+            return true;
+        }
+
+    size_t head_x = game->snake->x;
+    size_t head_y = game->snake->y;
+
+    struct Snake *ptr = game->snake->next;
+
+    while (ptr)
+    {
+        if (head_x == ptr->x && head_y == ptr->y)
+        {
+            game->start = false;
+            return false;
+        }
+        ptr = ptr->next;
+    }
+    return true;
+}
+
 void game_loop(struct Game *game)
 {
-    update_circuit(game);
-    render_circuit(game->circuit);
+    game->start = true;
+    //update_circuit(game);
 
     int *direction = xmalloc(sizeof(int));
     *direction = KEY_RIGHT;
     int move;
     while ((move = getch()) != 'q')
     {
+        if (game->start == false)
+            continue;
         // Check whether it's a valid move
         // and update *direction in consequence.
         if (isValidMove(move, direction))
             *direction = move;
         
+        // Keep track of the tail coordinates in case
+        // the snake is growing.
+        struct Snake *tail = get_snake_tail(game->snake);
+        size_t tail_x = tail->x;
+        size_t tail_y = tail->y;
+
         // Update the position according to the direction.
         update_position(game, direction);
-
+        // Check for collision
+        if (! check_collision(game, tail_x, tail_y))
+        {
+            printw("\nYou lost\nPress q to exit");
+        }
         //Finally render circuit.
-        render_circuit(game->circuit);
+        render_circuit(game);
         sleep(1);
     }
+
+    render_circuit(game);
 }

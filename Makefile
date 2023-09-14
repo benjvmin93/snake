@@ -1,7 +1,7 @@
 CC = gcc
 
 CFLAGS=-Wextra -Wall
-FILES = main.c game.c memory.c snake.c
+FILES = main.c game.c memory.c snake.c food.c
 
 LIBS=-lncurses
 

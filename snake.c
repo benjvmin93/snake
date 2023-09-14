@@ -50,6 +50,24 @@ void free_snake(struct Snake *snake)
     }
 }
 
+void grow_snake(struct Snake *snake, size_t tail_x, size_t tail_y)
+{
+    struct Snake *new_tail = xmalloc(sizeof(struct Snake));
+    new_tail->x = tail_x;
+    new_tail->y = tail_y;
+    new_tail->next = NULL;
+    struct Snake *tail = get_snake_tail(snake);
+    tail->next = new_tail;
+}
+
+struct Snake *get_snake_tail(struct Snake *snake)
+{
+    struct Snake *ptr = snake;
+    while(ptr->next)
+        ptr = ptr->next;
+    return ptr;
+}
+
 void update_snake_pos(struct Snake *snake, int *direction)
 {
     // Snake position update is about shifting all

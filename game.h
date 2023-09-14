@@ -7,10 +7,11 @@
 
 struct Game
 {
-    bool start;
     struct Snake *snake;
-    char **circuit;
     struct Food *food;
+    char **circuit;
+    int speed; // speed multiplier
+    bool start;
     int score;
 };
 

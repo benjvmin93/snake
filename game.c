@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#define _POSIX_C_SOURCE 199309L
 
 #include <unistd.h>
 #include <string.h>
@@ -12,8 +13,8 @@
 #include "snake.h"
 #include "food.h"
 
-#define CIRCUIT_WIDTH 15
-#define CIRCUIT_HEIGHT 25
+#define CIRCUIT_WIDTH 25
+#define CIRCUIT_HEIGHT 50
 
 /*
     Initialize circuit according to CIRCUIT_WIDTH and CIRCUIT_HEIGHT.
@@ -45,11 +46,16 @@ char **init_circuit(void)
 void update_circuit(struct Game *game)
 {
     struct Snake *snake = game->snake;
-    game->circuit[snake->y][snake->x] = 's';
+    game->circuit[snake->y][snake->x] = 'O';
     snake = snake->next;
     while (snake != NULL)
     {
-        game->circuit[snake->y][snake->x] = '~';
+        char c = 0;
+        if (snake->direction == KEY_UP || snake->direction == KEY_DOWN)
+            c = 'o';
+        else
+            c = 'o';
+        game->circuit[snake->y][snake->x] = c;
         snake = snake->next;
     }
 }
@@ -62,18 +68,19 @@ struct Game *init_game(void)
     struct Game *game = xmalloc(sizeof(struct Game));
     game->start = false;
     game->circuit = init_circuit();
-    game->snake = init_snake(CIRCUIT_HEIGHT / 2, CIRCUIT_WIDTH / 2);
+    game->snake = init_snake(CIRCUIT_HEIGHT / 2, CIRCUIT_WIDTH / 2, KEY_RIGHT);
     game->food = init_food(CIRCUIT_HEIGHT, CIRCUIT_WIDTH);
     game->score = 0;
+    game->speed = 1;
 
     game->circuit[game->food->y][game->food->x] = '*';
     struct Snake *ptr = game->snake;
 
-    game->circuit[ptr->y][ptr->x] = 's';
+    game->circuit[ptr->y][ptr->x] = 'O';
     ptr = ptr->next;
     while (ptr != NULL)
     {
-        game->circuit[ptr->y][ptr->x] = '~';
+        game->circuit[ptr->y][ptr->x] = 'o';
         ptr = ptr->next;
     }
 
@@ -92,7 +99,8 @@ void render_circuit(struct Game *game)
         }
     }
 
-    printw("score: %d", game->score);
+    printw("\nScore: %d\n", game->score);
+    printw("Game speed: x%d", game->speed);
 
     refresh();
 }
@@ -136,6 +144,7 @@ void free_game(struct Game *game)
 {
     free_snake(game->snake);
     free_circuit(game->circuit);
+    free_food(game->food);
     free(game);
 }
 
@@ -146,11 +155,6 @@ void free_circuit(char **circuit)
 		free(circuit[i]);
 	}
 	free(circuit);
-}
-
-WINDOW *create_window(size_t height, size_t width, size_t start_x, size_t start_y)
-{
-    return newwin(height, width, start_y, start_x);
 }
 
 /*
@@ -197,7 +201,8 @@ bool check_collision(struct Game *game, size_t tail_x, size_t tail_y)
             game->food->x = food_x;
             game->food->y = food_y;
             game->circuit[game->food->y][game->food->x] = '*';
-            game->score += 10;
+            game->score += 10; // Increase score
+            game->speed += 1; // Increase game speed for more fun
             return true;
         }
 
@@ -218,11 +223,23 @@ bool check_collision(struct Game *game, size_t tail_x, size_t tail_y)
     return true;
 }
 
+void game_sleep(struct Game *game)
+{
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 999999999;
+
+    if (game->speed > 1)
+        ts.tv_nsec /= game->speed;
+    
+    if (nanosleep(&ts, NULL) != 0)
+        err(errno, "Nanosleep failed\n%ld", ts.tv_nsec);
+}
+
+
 void game_loop(struct Game *game)
 {
     game->start = true;
-    //update_circuit(game);
-
     int *direction = xmalloc(sizeof(int));
     *direction = KEY_RIGHT;
     int move;
@@ -247,11 +264,13 @@ void game_loop(struct Game *game)
         if (! check_collision(game, tail_x, tail_y))
         {
             printw("\nYou lost\nPress q to exit");
+            continue;
         }
         //Finally render circuit.
         render_circuit(game);
-        sleep(1);
+        game_sleep(game);
     }
+    free(direction);
 
     render_circuit(game);
 }

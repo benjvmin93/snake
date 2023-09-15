@@ -112,7 +112,7 @@ void render_circuit(struct Game *game)
 
 void DEBUG_print_circuit(struct Game *game)
 {
-    printf("\e[1;1H\e[2J");
+    system("@cls||clear");
     char **circuit = game->circuit;
     for (size_t i = 0; i < CIRCUIT_WIDTH; ++i)
 	{
